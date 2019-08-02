@@ -238,7 +238,7 @@ func main() {
 	err := godotenv.Load()
 
 	if err != nil {
-		log.Fatal("No .env file found")
+		log.Print("No .env file found")
 	}
 
 	serve := flag.String("serve", ":9000", "Serve")
