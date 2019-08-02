@@ -1,0 +1,58 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-healthcheck
+  namespace: qooqie-production-resources
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: k8s-healthcheck
+  template:
+    metadata:
+      labels:
+        app: k8s-healthcheck
+    spec:
+        containers:
+          - name: health-api
+            image: davidqooqie/k8s-healthcheck:latest
+            env:
+              - name: RABBITMQ_URL
+                value: ""
+              - name: RABBITMQ_USER
+                value: ""
+              - name: RABBITMQ_PASS
+                valueFrom:
+                  secretKeyRef:
+                    name:
+                    key:
+              - name: MYSQL_APP_HOST
+                value: ""
+              - name: MYSQL_APP_USER
+                value: ""
+              - name: MYSQL_APP_PASS
+                valueFrom:
+                  secretKeyRef:
+                    name:
+                    key:
+              - name: MYSQL_PBX_HOST
+                value: ""
+              - name: MYSQL_PBX_USER
+                value: ""
+              - name: MYSQL_PBX_PASS
+                valueFrom:
+                  secretKeyRef:
+                    name:
+                    key:
+              - name: REDIS_HOST
+                value: ""
+              - name: REDIS_PASS
+                valueFrom:
+                  secretKeyRef:
+                    name:
+                    key:
+              - name: ELASTICSEARCH_URL
+                value: ""
+              - name: ELASTICSEARCH_LOGGING_URL
+                value: ""
