@@ -252,6 +252,7 @@ func main() {
 		for _, item := range status {
 			if item == "down" {
 				w.WriteHeader(http.StatusNotFound)
+				break
 			}
 		}
 
