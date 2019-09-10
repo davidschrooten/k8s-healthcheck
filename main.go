@@ -539,6 +539,8 @@ func checkState(interval time.Duration) {
 	loc, _ := time.LoadLocation("Europe/Amsterdam")
 	lastCheck = time.Now().In(loc).String()
 
+	log.Print("[INFO]: State check completed")
+
 	time.Sleep(interval * time.Second)
 
 	checkState(interval)
