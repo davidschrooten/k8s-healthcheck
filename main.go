@@ -27,9 +27,12 @@ var (
 		"elasticsearch":         "ok",
 		"elasticsearch-logging": "ok",
 	}
-	kubernetes *Kubernetes
-	serve      = flag.String("serve", ":9000", "Serve")
-	interval   = flag.Duration("interval", 30, "Interval for checks")
+	kubernetes = map[string]*Kubernetes{
+		"qooqie-production":           &Kubernetes{},
+		"qooqie-production-resources": &Kubernetes{},
+	}
+	serve    = flag.String("serve", ":9000", "Serve")
+	interval = flag.Duration("interval", 60, "Interval for checks")
 )
 
 type Kubernetes struct {
@@ -41,7 +44,13 @@ type Kubernetes struct {
 
 func searchNameStruct(stateChild []map[string]interface{}, name string) int {
 	for key, item := range stateChild {
-		if item["name"] == name {
+		var keys = []string{}
+
+		for sKey := range item {
+			keys = append(keys, sKey)
+		}
+
+		if keys[0] == name {
 			return key
 		}
 	}
@@ -71,8 +80,8 @@ func checkChild(stateChild []map[string]interface{}) []map[string]interface{} {
 	return stateChild
 }
 
-func getJobParent(host string, token string, name string) (string, error) {
-	resp, err := jwtGet(fmt.Sprintf("%s/apis/batch/v1/namespaces/qooqie-production/jobs?fieldSelector=metadata.name=%s", host, name), token)
+func getJobParent(host string, token string, namespace string, name string) (string, error) {
+	resp, err := jwtGet(fmt.Sprintf("%s/apis/batch/v1/namespaces/%s/jobs?fieldSelector=metadata.name=%s", host, namespace, name), token)
 
 	if err != nil {
 		return "", err
@@ -113,8 +122,8 @@ func getJobParent(host string, token string, name string) (string, error) {
 	return "", errors.New("[KUBERNETES]: Job endpoint returns status other then ok")
 }
 
-func getRSParent(host string, token string, name string) (string, error) {
-	resp, err := jwtGet(fmt.Sprintf("%s/apis/apps/v1/namespaces/qooqie-production/replicasets?fieldSelector=metadata.name=%s", host, name), token)
+func getRSParent(host string, token string, namespace string, name string) (string, error) {
+	resp, err := jwtGet(fmt.Sprintf("%s/apis/apps/v1/namespaces/%s/replicasets?fieldSelector=metadata.name=%s", host, namespace, name), token)
 
 	if err != nil {
 		return "", err
@@ -149,10 +158,10 @@ func getRSParent(host string, token string, name string) (string, error) {
 	return "", errors.New("[KUBERNETES]: Replicaset endpoint returns status other then ok")
 }
 
-func checkKubernetes(host string, token string) (*Kubernetes, error) {
+func checkKubernetes(host string, token string, namespace string) (*Kubernetes, error) {
 	log.Printf("[KUBERNETES]: Checking kubernetes cluster: %s", host)
 	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-	resp, err := jwtGet(fmt.Sprintf("%s/api/v1/namespaces/qooqie-production/pods", host), token)
+	resp, err := jwtGet(fmt.Sprintf("%s/api/v1/namespaces/%s/pods", host, namespace), token)
 
 	if err != nil {
 		return &Kubernetes{}, err
@@ -211,7 +220,7 @@ func checkKubernetes(host string, token string) (*Kubernetes, error) {
 
 			switch parentType {
 			case "ReplicaSet":
-				rsName, err := getRSParent(host, token, parentName)
+				rsName, err := getRSParent(host, token, namespace, parentName)
 
 				if err != nil {
 					return &Kubernetes{}, err
@@ -237,7 +246,7 @@ func checkKubernetes(host string, token string) (*Kubernetes, error) {
 					})
 				}
 			case "Job":
-				jobName, err := getJobParent(host, token, parentName)
+				jobName, err := getJobParent(host, token, namespace, parentName)
 
 				if err != nil {
 					return &Kubernetes{}, err
@@ -530,10 +539,20 @@ func checkState(interval time.Duration) {
 
 	if state, err := checkKubernetes(os.Getenv("KUBERNETES_HOST"),
 		os.Getenv("KUBERNETES_TOKEN"),
+		"qooqie-production",
 	); err != nil {
-		kubernetes = &Kubernetes{}
+		kubernetes["qooqie-production"] = &Kubernetes{}
 	} else {
-		kubernetes = state
+		kubernetes["qooqie-production"] = state
+	}
+
+	if state, err := checkKubernetes(os.Getenv("KUBERNETES_HOST"),
+		os.Getenv("KUBERNETES_TOKEN"),
+		"qooqie-production-resources",
+	); err != nil {
+		kubernetes["qooqie-production-resources"] = &Kubernetes{}
+	} else {
+		kubernetes["qooqie-production-resources"] = state
 	}
 
 	loc, _ := time.LoadLocation("Europe/Amsterdam")
@@ -566,9 +585,9 @@ func main() {
 		}
 
 		encode, _ := json.MarshalIndent(map[string]interface{}{
-			"resources":  statusResources,
-			"kubernetes": kubernetes,
-			"last_check": lastCheck,
+			"resources-internals": statusResources,
+			"kubernetes":          kubernetes,
+			"last-check":          lastCheck,
 		}, "", "    ")
 
 		w.Header().Set("Content-Type", "application/json")
